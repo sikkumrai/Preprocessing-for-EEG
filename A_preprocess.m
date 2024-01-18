@@ -57,8 +57,9 @@ for i = 1:size(subjects)
 
     %some parameters for connectivity estimation
     lpFilter =   45;       % low-pass filter cut-off
-    bsFilter =   [47 53];       % additional notch filter 
-    dsRate =  10;       % downsampling rate    
+    bsFilter =   [47 53];% additional notch filter 
+    
+    dsRate =  data.fsample/100;       % downsampling rate    
 
     %% zero-phase filtering
     
