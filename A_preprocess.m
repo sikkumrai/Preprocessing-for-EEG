@@ -5,23 +5,31 @@ set_paths
 addpath ('C:\Users\User\Documents\MATLAB\fieldtrip-20230125')
 ft_defaults
 % list of subjects
-subj_list = dir([eegpath '*.eeg']);
+subjects = dir(eegpath);
+subjects = subjects([subjects.isdir]);  % keep only directories
+subjects = subjects(~ismember({subjects.name}, {'.', '..'}));  % remove '.' and '..'
+%subj_list = dir([eegpath '*.eeg']);
 %% read data
-for i = 1:length(subj_list)
+for i = 1:size(subjects)
 
     tic
     clear info
-    subj = subj_list(i).name;
+    subj = subjects(i).name;
+
+    subj_list = dir([eegpath subj '\' '*.eeg']); %checks if there is an .eeg file
+    subj_eeg = subj_list(1).name;
+
+
     sub_report_path = [report_path subj(1:end-4) '\']; 
     mkdir (sub_report_path);
-    filepath = [eegpath subj];
+    filepath = [eegpath subj '\' subj_eeg];
 
     hdr = ft_read_header(filepath);
     ev = ft_read_event(filepath);  % read events
 
     info.subject_id = subj;
 
-    EEG = pop_biosig([eegpath subj]);
+    EEG = pop_biosig([eegpath subj '\' subj_eeg]);
 
     %% plot Raw data
     mkdir([plots_path subj]);
@@ -43,16 +51,17 @@ for i = 1:length(subj_list)
     info.minutes = (size(data.time{1,1},2)/data.fsample)/60;
 
 
-
-    epochLeng = 0.4; % length of epochs in sec
+    time = data.time{1};
+    epochLeng =2;
+    %epochLeng = ((time(2)-time(1))*1000); % length of epochs in sec
 
     %some parameters for connectivity estimation
     lpFilter =   45;       % low-pass filter cut-off
     bsFilter =   [47 53];       % additional notch filter 
-    dsRatio =  10;       % downsampling rate    
+    dsRate =  10;       % downsampling rate    
 
     %% zero-phase filtering
-    EEG = pop_biosig([eegpath subj]);
+    
     [b_low, a_low] = butter(5, lpFilter/(data.fsample/2), 'low');
     [b_notch, a_notch] = butter(2, bsFilter/(data.fsample/2),'stop');
     a_all = poly([roots(a_low); roots(a_notch)]);
@@ -81,8 +90,8 @@ for i = 1:length(subj_list)
    
      %% downsampling
     data.xmin= 0;
-    data.trial{1} = data.trial{1}(:, 1:dsRatio:end);
-    data.fsample = data.fsample/dsRatio;
+    data.trial{1} = data.trial{1}(:, 1:dsRate:end);
+    data.fsample = data.fsample/dsRate;
     data.pnts  = size(data.trial{1},2);
     data.xmax    = data.xmin + (data.pnts -1)/data.fsample;
     data.times  = linspace(data.xmin*1000, data.xmax*1000, data.pnts);
