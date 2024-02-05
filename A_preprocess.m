@@ -1,14 +1,17 @@
-main_dir = 'C:\Users\User\Documents\MATLAB\prepro-LEMON\';
+main_dir = 'C:\Users\User\Documents\MATLAB\ProjectPTB\1\prepro\';
 addpath([main_dir '\utils']);
 set_paths
 % FieldTrip
 addpath ('C:\Users\User\Documents\MATLAB\fieldtrip-20230125')
 ft_defaults
+%EEGlab
+addpath ('C:\Users\User\Documents\MATLAB\ProjectPTB\1\prepro\eeglab_current\eeglab2023.1\')
+eeglab
 % list of subjects
 subjects = dir(eegpath);
 subjects = subjects([subjects.isdir]);  % keep only directories
 subjects = subjects(~ismember({subjects.name}, {'.', '..'}));  % remove '.' and '..'
-%subj_list = dir([eegpath '*.eeg']);
+
 %% read data
 for i = 1:size(subjects)
 
@@ -16,35 +19,29 @@ for i = 1:size(subjects)
     clear info
     subj = subjects(i).name;
 
-    subj_list = dir([eegpath subj '\' '*.eeg']); %checks if there is an .eeg file
+    subj_list = dir([eegpath subj '\' '*.mat']); %checks if there is an .eeg file
     subj_eeg = subj_list(1).name;
 
 
     sub_report_path = [report_path subj(1:end-4) '\']; 
     mkdir (sub_report_path);
+
+    load([eegpath subj '\' subj_eeg]);
+
     filepath = [eegpath subj '\' subj_eeg];
+    
+    data = eeglab2fieldtrip(EEG, 'raw', bone);    
 
-    hdr = ft_read_header(filepath);
-    ev = ft_read_event(filepath);  % read events
-
-    info.subject_id = subj;
-
-    EEG = pop_biosig([eegpath subj '\' subj_eeg]);
-
+    
     %% plot Raw data
     mkdir([plots_path subj]);
     plot_psd(EEG,'before', [plots_path subj]);     
-
-    %% set preprocessing parameters
-
+    
+ %% set preprocessing parameters
     cfg = [];
     cfg.datafile = filepath;
-    cfg.bpfilter = 'yes'; % band-pass filter
-    cfg.bpfreq = [1 50];
-    info.freq = cfg.bpfreq;
-
     cfg.layout = 'layout.mat'
-    data = ft_preprocessing(cfg);
+   
 
     info.orig_sf = data.fsample;
     info.nchan = length(data.label);
@@ -58,23 +55,23 @@ for i = 1:size(subjects)
     %some parameters for connectivity estimation
     lpFilter =   45;       % low-pass filter cut-off
     bsFilter =   [47 53];% additional notch filter 
-    
+
     dsRate =  data.fsample/100;       % downsampling rate    
 
     %% zero-phase filtering
-    
+
     [b_low, a_low] = butter(5, lpFilter/(data.fsample/2), 'low');
     [b_notch, a_notch] = butter(2, bsFilter/(data.fsample/2),'stop');
     a_all = poly([roots(a_low); roots(a_notch)]);
     b_all = conv(b_low, b_notch);
     data.trial{1} = filtfilt(b_all, a_all, double(data.trial{1})')';   
-    
-    %% regress out EOG - 17
-    eogs = [17];
-    eeg_data = data.trial{1,1}';
-    eog_data = data.trial{1,1}(eogs,:)';
-    eeg_data = eeg_data - eog_data*(eog_data\eeg_data);
-    data.trial{1,1} = eeg_data';
+
+    % %% regress out EOG - 17
+    % eogs = [17];
+    % eeg_data = data.trial{1,1}';
+    % eog_data = data.trial{1,1}(eogs,:)';
+    % eeg_data = eeg_data - eog_data*(eog_data\eeg_data);
+    % data.trial{1,1} = eeg_data';
 
     %% interpolate outlying channels
     % this part detects outlying channels 
@@ -88,7 +85,7 @@ for i = 1:size(subjects)
     all_bad_ch = [all_bad_ch;bc];
     info.badchans = all_bad_ch;
     clearvars bc
-   
+
      %% downsampling
     data.xmin= 0;
     data.trial{1} = data.trial{1}(:, 1:dsRate:end);
@@ -146,12 +143,11 @@ for i = 1:size(subjects)
 
     %% plot Preprocessed data
 
-    plot_psd(data,'after', [plots_path subj]);   
-
- 
+    plot_psd(data,'after', [plots_path subj]);
 
 
-    %% finish and save report
+
+   %% finish and save report
     timer = toc;
     info.time = timer;
     ft_write_data([prep_path subj], data, 'dataformat','matlab')
